@@ -1,0 +1,100 @@
+#include "Project_heder.c"
+
+int gCanID;
+
+void CAN_IRQHandler()
+{
+	if(c->RID ==2)  gCanID=2;
+	if(c->RID ==3)  gCanID=3;
+	if(c->RID ==1)  gCanID=1;
+	if(c->RID ==11) gCanID=11;
+	if(c->RID ==12) gCanID=12;
+	c->CMR = (1<<2);	
+}
+ 
+void EINT3_IRQHandler()
+{
+	if ((g->IO0IntStatF &(1<<6))==(1<<6))		 //switch n3
+		{
+	     	can_tx(1,1,0,7);
+			g->IO0IntClr = (1<<6);
+		}
+	if ((g->IO0IntStatF &(1<<7))==(1<<7))	  //switch n3
+	{
+     	can_tx(1,1,0,8);
+		g->IO0IntClr = (1<<7);
+	}
+	if ((g->IO0IntStatF &(1<<8))==(1<<8))//sw n3
+		{
+	     	can_tx(1,1,0,9);
+			g->IO0IntClr = (1<<8);
+		}
+}
+
+void can_rx_init()
+{
+	cf->AFMR = 1;
+	cfr->mask[0] = (1<<16) | (2<<0);
+	cfr->mask[1] = (3<<16) | (11<<0);
+	cfr->mask[2] = (12<<16) | (15<<0);
+	cf->SFF_sa	  = 0;
+	cf->SFF_GRP_sa  = 12;
+	cf->EFF_sa      = 12;
+	cf->EFF_GRP_sa  = 12;
+	cf->ENDofTable  = 12;
+	cf->AFMR        = 0;
+	NVIC_EnableIRQ(CAN_IRQn);
+	c->IER = 1;
+}
+
+int main()
+{
+	unsigned int a;
+	g->IO0IntEnF|= (7<<6);   //pins 6,7,8
+	init_pll();
+	hyper_terminal("*******CAN-NODE3 is Initializing*****\r\n");
+	can_rx_init();
+	while(1)
+	{	
+		a = sense_data();
+		//adc data: 1000-2000
+		if ((a>1000)&&(a<2000))  can_tx(1,1,0,14);
+
+		
+	   if((p0->FIOPIN&(1<<11))==0)  can_tx(1,1,0,13);
+		
+//***************************//
+		
+		//stepper motor: 90deg	
+		if(gCanID==2)
+		{
+			hyper_terminal("Message ID 2 is Received --> dc_motor\r\n");
+		//	step_motor(90);
+			dc_motor( );
+		}
+
+		//Dc motor: 30% speed
+		if(gCanID==3)
+		{
+			hyper_terminal("Message ID 3 is Received --> buzzer\r\n");
+			buzzer();
+		}
+
+		//led blink
+		if(gCanID==1)  
+		{
+			hyper_terminal("Message ID 1 is Received --> led_blink \r\n");
+		    led_blink();
+		}
+		
+		//Hyperterminal
+		if(gCanID==11)	hyper_terminal(" Message ID 11: Object is detected\r\n");
+		
+		//Buzzer	
+		if(gCanID==12)hyper_terminal("ID is 12: N2-N3 received Successfully\r\n");
+
+	     gCanID=0;
+		 delay_ms1(500);			
+	    
+	}  
+}
